@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'unsafe-inline'; img-src https://*.googleusercontent.com data:; connect-src https://script.google.com https://*.googleusercontent.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <title>Golden Party — Administração</title>
 <style>
-:root{--gold:#b18a3b;--line:#eadfc6;color-scheme:light}
+:root{--gold:#8a6a28;--line:#eadfc6;color-scheme:light}
 body{font-family:system-ui,sans-serif;max-width:980px;margin:20px auto;padding:0 14px;color:#2b2b2b;background:#fffdf8}
 h1{font-family:Georgia,serif;font-weight:400;color:var(--gold);margin:8px 0}
 nav{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
@@ -17,6 +19,7 @@ button.sm{padding:4px 10px;font-size:12px}button.red{background:#b3261e}
 input{padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px;width:100%;margin:4px 0 10px}
 .tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #1a56db;outline-offset:2px}
 img.t{width:46px;height:46px;object-fit:cover;border-radius:6px}
 dl{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin:0}dd{margin:0;text-align:right}
 #m{min-height:20px;font-size:14px}.dim{color:#8a8372}
@@ -25,7 +28,7 @@ dl{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin:0}dd{margin:0
 <body>
 <h1>Administração — Golden Party</h1>
 <section id="login" class="p" style="max-width:380px">
-  <label>Palavra-passe<input id="pw" type="password" autocomplete="current-password"></label>
+  <label>Palavra-passe<input id="pw" name="pw" type="password" autocomplete="current-password"></label>
   <button id="go">Entrar</button>
 </section>
 <nav id="nav" hidden></nav>

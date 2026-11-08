@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https://*.googleusercontent.com data:; connect-src https://script.google.com https://*.googleusercontent.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <title>Golden Party — Matilde &amp; Rúben</title>
 <style>
-:root{--gold:#b18a3b;--gold-d:#8a6a28;--bg:#fffdf8;--ink:#2b2b2b;--mut:#7a7466;--line:#eadfc6;color-scheme:light}
+:root{--gold:#8a6a28;--gold-d:#6f541d;--gold-soft:#b18a3b;--bg:#fffdf8;--ink:#2b2b2b;--mut:#7a7466;--line:#eadfc6;color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:Georgia,'Times New Roman',serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 header{text-align:center;padding:36px 16px 12px}
@@ -29,6 +31,8 @@ select{padding:8px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 .ph .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px}
 .like{background:none;color:var(--gold);padding:4px 8px;border:1px solid var(--line);border-radius:999px;font-size:13px}
 .like.on{background:var(--gold);color:#fff}.like:hover{background:var(--line)}.like.on:hover{background:var(--gold-d)}
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,h2:focus-visible{outline:3px solid #1a56db;outline-offset:2px}
+button,select{min-height:40px}
 .rank{position:absolute;top:8px;left:8px;background:rgba(255,255,255,.92);color:var(--gold-d);border-radius:999px;padding:2px 9px;font:600 12px system-ui}
 .winner{max-width:520px;margin:24px auto;padding:22px;text-align:center;border:2px solid var(--gold);border-radius:22px;background:linear-gradient(180deg,#fff8e4,#fff);animation:glow 2.4s ease-in-out infinite alternate}
 .winner img{width:100%;border-radius:14px;margin:12px 0}
@@ -43,13 +47,13 @@ progress{width:100%;margin-top:10px;accent-color:var(--gold)}
 <body>
 <header><h1>Golden Party<span>Matilde &amp; Rúben</span></h1><button id="shareBtn" class="ghost" style="margin-top:14px">Partilhar</button></header>
 <main>
-  <div id="banner" class="banner" hidden></div>
+  <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
   <section id="winnerBox" hidden></section>
 
   <section id="reg" class="card" hidden>
     <h2>Bem-vindo(a)</h2>
     <p>Diz-nos o teu nome para participares na competição fotográfica.</p>
-    <input id="nameIn" type="text" maxlength="40" placeholder="O teu nome" autocomplete="name">
+    <input id="nameIn" type="text" aria-label="O teu nome" enterkeyhint="go" maxlength="40" placeholder="O teu nome" autocomplete="name">
     <button id="regBtn">Entrar</button>
     <div id="regMsg" class="msg" role="status"></div>
   </section>
@@ -81,10 +85,13 @@ let me = null, G = null, S = null, liked = new Set(), shuffle = null, busy = fal
 
 try { me = JSON.parse(localStorage.getItem('gp_me') || 'null'); } catch (e) {}
 
-async function api(action, body) {
+async function api(action, body, retry = 2) {
   const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, ...body }) });
   const j = await r.json();
-  if (!j.success) throw new Error(j.error ? j.error.message : 'Erro desconhecido.');
+  if (!j.success) {
+    if (j.error && j.error.code === 'BUSY' && retry > 0) { await new Promise((k) => setTimeout(k, 1500 + Math.random() * 1500)); return api(action, body, retry - 1); }
+    throw new Error(j.error ? j.error.message : 'Erro desconhecido.');
+  }
   return j.data;
 }
 async function get(action) {
@@ -125,15 +132,38 @@ function render() {
   renderGrid();
 }
 
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = document.createElement('canvas');
+  c.setAttribute('aria-hidden', 'true');
+  c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50';
+  c.width = innerWidth; c.height = innerHeight; document.body.append(c);
+  const x = c.getContext('2d'), cols = ['#b18a3b', '#e6c76b', '#fff2c4', '#8a6a28'];
+  const ps = Array.from({ length: 140 }, () => ({ x: Math.random() * c.width, y: -20 - Math.random() * c.height * .5, v: 2 + Math.random() * 4, s: 5 + Math.random() * 6, r: Math.random() * 6, w: Math.random() * .2 - .1, c: cols[Math.floor(Math.random() * cols.length)] }));
+  let t = 0;
+  (function f() {
+    x.clearRect(0, 0, c.width, c.height);
+    ps.forEach((p) => { p.y += p.v; p.r += p.w; x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.fillStyle = p.c; x.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); x.restore(); });
+    if (++t < 260) requestAnimationFrame(f); else c.remove();
+  })();
+}
 function renderWinner() {
   const box = $('winnerBox'); box.replaceChildren();
   if (!G.winner) { box.hidden = true; return; }
   box.hidden = false;
   const w = document.createElement('div'); w.className = 'winner';
-  const h = document.createElement('h2'); h.textContent = '🏆 Fotografia vencedora'; h.style.cssText = 'font-weight:400;color:var(--gold);margin:0';
-  const im = document.createElement('img'); im.src = imgUrl(G.winner.fileId, 1000); im.alt = 'Fotografia vencedora';
+  const h = document.createElement('h2'); h.style.cssText = 'font-weight:400;color:var(--gold);margin:0';
+  if (sessionStorage.getItem('gp_rev') !== '1') {
+    h.textContent = 'O vencedor está decidido!';
+    const b = document.createElement('button'); b.textContent = 'Revelar vencedor'; b.style.marginTop = '14px';
+    b.onclick = () => { sessionStorage.setItem('gp_rev', '1'); renderWinner(); confetti(); $('winnerBox').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+    w.append(h, b); box.append(w); return;
+  }
+  h.textContent = '🏆 Fotografia vencedora'; h.tabIndex = -1;
+  const im = document.createElement('img'); im.src = imgUrl(G.winner.fileId, 1000); im.alt = 'Fotografia vencedora, de ' + G.winner.participantName;
   const p = document.createElement('div'); p.textContent = G.winner.participantName + ' · ' + G.winner.likeCount + ' gostos';
-  w.append(h, im, p); box.append(w);
+  p.style.fontWeight = '600';
+  w.append(h, im, p); box.append(w); h.focus({ preventScroll: true });
 }
 
 function renderGrid() {
@@ -157,7 +187,7 @@ function renderGrid() {
     if (me && G.state !== 'ended') { const fl = document.createElement('button'); fl.className = 'like'; fl.textContent = '⚑'; fl.title = 'Pedir remoção'; fl.setAttribute('aria-label', 'Pedir remoção desta fotografia'); fl.onclick = () => report(p); m.append(fl); }
     if (!own && me && G.state === 'open') {
       const b = document.createElement('button'); b.className = 'like' + (liked.has(p.id) ? ' on' : '');
-      b.textContent = '♥ ' + p.likeCount; b.setAttribute('aria-pressed', liked.has(p.id));
+      b.textContent = '♥ ' + p.likeCount; b.setAttribute('aria-pressed', liked.has(p.id)); b.setAttribute('aria-label', 'Gostar da fotografia de ' + p.participantName + ', ' + p.likeCount + ' gostos');
       b.onclick = () => like(p, b);
       m.append(b);
     } else {
