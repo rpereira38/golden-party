@@ -41,7 +41,7 @@ progress{width:100%;margin-top:10px;accent-color:var(--gold)}
 </style>
 </head>
 <body>
-<header><h1>Golden Party<span>Matilde &amp; Rúben</span></h1></header>
+<header><h1>Golden Party<span>Matilde &amp; Rúben</span></h1><button id="shareBtn" class="ghost" style="margin-top:14px">Partilhar</button></header>
 <main>
   <div id="banner" class="banner" hidden></div>
   <section id="winnerBox" hidden></section>
@@ -154,6 +154,7 @@ function renderGrid() {
     const who = document.createElement('span'); who.className = 'who'; who.textContent = p.participantName;
     m.append(who);
     const own = me && me.participantId === p.participantId;
+    if (me && G.state !== 'ended') { const fl = document.createElement('button'); fl.className = 'like'; fl.textContent = '⚑'; fl.title = 'Pedir remoção'; fl.setAttribute('aria-label', 'Pedir remoção desta fotografia'); fl.onclick = () => report(p); m.append(fl); }
     if (!own && me && G.state === 'open') {
       const b = document.createElement('button'); b.className = 'like' + (liked.has(p.id) ? ' on' : '');
       b.textContent = '♥ ' + p.likeCount; b.setAttribute('aria-pressed', liked.has(p.id));
@@ -189,6 +190,17 @@ $('regBtn').onclick = async () => {
 };
 
 $('sort').onchange = renderGrid;
+$('shareBtn').onclick = async () => {
+  const url = location.href.split('#')[0], title = 'Golden Party — Matilde & Rúben';
+  try { if (navigator.share) await navigator.share({ title, url }); else { await navigator.clipboard.writeText(url); showBanner('Ligação copiada!'); } }
+  catch (e) { if (e.name !== 'AbortError') showBanner('Copia o endereço da barra do browser para partilhar.'); }
+};
+async function report(p) {
+  const reason = prompt('Porque queres pedir a remoção desta fotografia?');
+  if (!reason) return;
+  try { await api('requestRemoval', { token: me.token, photoId: p.id, reason }); showBanner('Pedido enviado. A organização vai analisá-lo.'); }
+  catch (e) { showBanner(e.message); }
+}
 $('pickBtn').onclick = () => $('file').click();
 $('file').onchange = () => { const f = $('file').files[0]; $('file').value = ''; if (f) upload(f); };
 

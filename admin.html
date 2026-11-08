@@ -6,63 +6,143 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Golden Party — Administração</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:520px;margin:30px auto;padding:0 16px;color:#2b2b2b}
-h1{font-family:Georgia,serif;font-weight:400;color:#b18a3b}
-.p{border:1px solid #eadfc6;border-radius:14px;padding:18px;margin:16px 0}
-input{width:100%;padding:10px;margin:6px 0 12px;border:1px solid #eadfc6;border-radius:8px;font-size:16px}
-button{background:#b18a3b;color:#fff;border:0;border-radius:999px;padding:10px 20px;cursor:pointer}
+:root{--gold:#b18a3b;--line:#eadfc6;color-scheme:light}
+body{font-family:system-ui,sans-serif;max-width:980px;margin:20px auto;padding:0 14px;color:#2b2b2b;background:#fffdf8}
+h1{font-family:Georgia,serif;font-weight:400;color:var(--gold);margin:8px 0}
+nav{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+button{background:var(--gold);color:#fff;border:0;border-radius:999px;padding:8px 16px;cursor:pointer;font-size:14px}
+nav button{background:#fff;color:var(--gold);border:1px solid var(--gold)}nav button.on{background:var(--gold);color:#fff}
+button.sm{padding:4px 10px;font-size:12px}button.red{background:#b3261e}
+.p{border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0;background:#fff}
+input{padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px;width:100%;margin:4px 0 10px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+img.t{width:46px;height:46px;object-fit:cover;border-radius:6px}
 dl{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin:0}dd{margin:0;text-align:right}
-#m{min-height:20px;font-size:14px}
+#m{min-height:20px;font-size:14px}.dim{color:#8a8372}
 </style>
 </head>
 <body>
 <h1>Administração — Golden Party</h1>
-<section id="login" class="p">
+<section id="login" class="p" style="max-width:380px">
   <label>Palavra-passe<input id="pw" type="password" autocomplete="current-password"></label>
   <button id="go">Entrar</button>
 </section>
-<section id="panel" hidden>
-  <div class="p"><h3>Painel</h3><dl id="dash"></dl></div>
-  <div class="p">
-    <h3>Competição</h3>
-    <label>Início<input id="start" type="datetime-local"></label>
-    <label>Fim<input id="end" type="datetime-local"></label>
-    <button id="save">Guardar datas</button>
-  </div>
-</section>
+<nav id="nav" hidden></nav>
 <div id="m" role="status"></div>
+<main id="view"></main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" async></script>
 <script>
 'use strict';
 const API_URL = 'https://script.google.com/macros/s/AKfycbyWyFt0lmQB4aKQJqViAWXpM7WRw3p15jlwVEz1BwWMAc_h1htBLmSXYykEsLc7bc8QGw/exec';
 const $ = (i) => document.getElementById(i);
 let tok = sessionStorage.getItem('gp_admin') || '';
 const say = (t) => ($('m').textContent = t);
+const fmt = (iso) => (iso ? new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' }) : '');
+const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
+const img = (id) => 'https://lh3.googleusercontent.com/d/' + id + '=w120';
+
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  Object.assign(e, props || {});
+  e.append(...kids.filter((k) => k !== null && k !== undefined));
+  return e;
+}
+const btn = (text, fn, cls) => { const b = el('button', { textContent: text, className: 'sm ' + (cls || '') }); b.onclick = fn; return b; };
+function table(head, rows) {
+  if (!rows.length) return el('p', { className: 'dim', textContent: 'Sem registos.' });
+  return el('div', { className: 'tw' }, el('table', {},
+    el('thead', {}, el('tr', {}, ...head.map((h) => el('th', { textContent: h })))),
+    el('tbody', {}, ...rows.map((r) => el('tr', {}, ...r.map((c) => el('td', {}, c instanceof Node ? c : String(c ?? ''))))))));
+}
+
 async function api(action, body) {
   const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, adminToken: tok, ...body }) });
   const j = await r.json();
-  if (!j.success) throw new Error(j.error.message);
+  if (!j.success) { if (j.error.code === 'UNAUTHORIZED') logout(); throw new Error(j.error.message); }
   return j.data;
 }
-const toLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
-const toIso = (v) => (v ? new Date(v).toISOString() : '');
-async function load() {
-  try {
-    const [c, d] = await Promise.all([api('adminGetConfig'), api('adminDashboard')]);
-    $('login').hidden = true; $('panel').hidden = false;
-    $('start').value = toLocal(c.config.competition_start); $('end').value = toLocal(c.config.competition_end);
-    const rows = { 'Estado': c.state, 'Participantes': d.participants, 'Fotografias ativas': d.activePhotos, 'Gostos': d.likes, 'Notificações por ler': d.unreadNotifications };
-    $('dash').replaceChildren(...Object.entries(rows).flatMap(([k, v]) => { const a = document.createElement('dt'), b = document.createElement('dd'); a.textContent = k; b.textContent = v; return [a, b]; }));
-  } catch (e) { tok = ''; sessionStorage.removeItem('gp_admin'); $('login').hidden = false; $('panel').hidden = true; say(e.message); }
+function logout() { tok = ''; sessionStorage.removeItem('gp_admin'); $('login').hidden = false; $('nav').hidden = true; $('view').replaceChildren(); }
+function dl(name, text, type) { const a = el('a', { href: URL.createObjectURL(new Blob(['\ufeff' + text], { type })), download: name }); a.click(); }
+
+const TABS = {
+  Painel: async (v) => {
+    const d = await api('adminDashboard');
+    const rows = { Estado: d.state, Participantes: d.participants, 'Fotografias ativas': d.activePhotos, 'Fotografias guardadas (total)': d.totalPhotosStored, Gostos: d.likes, 'Notificações por ler': d.unreadNotifications };
+    v.append(el('div', { className: 'p' }, el('dl', {}, ...Object.entries(rows).flatMap(([k, x]) => [el('dt', { textContent: k }), el('dd', { textContent: x })]))));
+  },
+  Participantes: async (v) => {
+    const l = await api('adminParticipants');
+    v.append(el('div', { className: 'p' }, table(['Nome', 'Registo', 'Foto ativa', 'Gostos dados', ''], l.map((p) => [p.name, fmt(p.createdAt), p.activePhoto ? 'sim' : 'não', p.likesGiven,
+      p.nameReleased ? 'nome libertado' : btn('Libertar nome', async () => { if (confirm('Libertar o nome "' + p.name + '" para novo registo? Os dados são mantidos.')) { await api('adminReleaseName', { participantId: p.id }); show('Participantes'); } })]))));
+  },
+  Fotografias: async (v) => {
+    const l = await api('adminPhotos');
+    v.append(el('div', { className: 'p' }, table(['', 'Participante', 'Estado', 'Gostos', 'Enviada', 'Original', ''], l.map((p) => [
+      el('img', { className: 't', src: img(p.fileId), alt: '', loading: 'lazy' }), p.participantName, p.status, p.likeCount, fmt(p.createdAt),
+      el('a', { href: p.originalUrl, target: '_blank', rel: 'noopener', textContent: mb(p.sizeOriginal) }),
+      p.status === 'active' ? btn('Remover', async () => { if (confirm('Remover esta fotografia da galeria? É reversível.')) { await api('adminSetPhotoStatus', { photoId: p.id, status: 'removed' }); show('Fotografias'); } }, 'red')
+        : p.status === 'removed' ? btn('Repor', async () => { await api('adminSetPhotoStatus', { photoId: p.id, status: 'active' }); show('Fotografias'); }) : ''
+    ]))));
+  },
+  Remoções: async (v) => {
+    const l = await api('adminRemovals');
+    v.append(el('div', { className: 'p' }, table(['Data', 'Fotografia de', 'Pedido por', 'Motivo', 'Estado', ''], l.map((r) => [fmt(r.createdAt), r.owner, r.requester, r.reason, r.status,
+      r.status === 'pending' ? el('span', {}, btn('Aprovar', async () => { await api('adminResolveRemoval', { id: r.id, decision: 'approve' }); show('Remoções'); }, 'red'), ' ', btn('Rejeitar', async () => { await api('adminResolveRemoval', { id: r.id, decision: 'reject' }); show('Remoções'); })) : ''
+    ]))));
+  },
+  Notificações: async (v) => {
+    const l = await api('adminNotifications');
+    v.append(el('div', { className: 'p' }, btn('Marcar tudo como lido', async () => { await api('adminMarkRead'); show('Notificações'); }), table(['Data', 'Tipo', 'Mensagem', ''], l.map((n) => [fmt(n.createdAt), n.type, n.message, n.read ? '' : '●']))));
+  },
+  Atividade: async (v) => {
+    const l = await api('adminActivity');
+    v.append(el('div', { className: 'p' }, table(['Data', 'Ação', 'Detalhes'], l.map((a) => [fmt(a.at), a.action, a.details]))));
+  },
+  Configurações: async (v) => {
+    const c = await api('adminGetConfig'), loc = (iso) => { if (!iso) return ''; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+    const s = el('input', { type: 'datetime-local', value: loc(c.config.competition_start) }), e = el('input', { type: 'datetime-local', value: loc(c.config.competition_end) });
+    const iso = (x) => (x.value ? new Date(x.value).toISOString() : '');
+    const url = el('input', { type: 'url', value: location.href.replace(/admin\.html.*$/, '') });
+    const qr = el('div', { style: 'max-width:240px;margin:10px 0' });
+    const draw = () => { try { const q = qrcode(0, 'M'); q.addData(url.value); q.make(); qr.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); } catch (x) { qr.textContent = 'Não foi possível gerar o QR (biblioteca indisponível).'; } };
+    url.oninput = draw; setTimeout(draw, 400);
+    v.append(
+      el('div', { className: 'p' }, el('h3', { textContent: 'Competição — estado: ' + c.state }), el('label', {}, 'Início', s), el('label', {}, 'Fim', e),
+        btn('Guardar datas', async () => { await api('adminSetConfig', { values: { competition_start: iso(s), competition_end: iso(e) } }); say('Datas guardadas.'); show('Configurações'); })),
+      el('div', { className: 'p' }, el('h3', { textContent: 'Código QR' }), el('label', {}, 'Endereço da plataforma', url), qr));
+  },
+  Exportar: async (v) => {
+    const s = await api('adminStorage'), row = (n, x) => [n, x.files, mb(x.bytes)];
+    const csv = (kind) => async () => { const r = await api('adminExport', { kind }); dl(r.filename, r.csv, 'text/csv'); };
+    const out = el('p', { className: 'dim' });
+    v.append(
+      el('div', { className: 'p' }, el('h3', { textContent: 'Armazenamento' }),
+        table(['Pasta', 'Ficheiros', 'Tamanho'], [row('Originais', s.originais), row('Otimizadas', s.otimizadas), row('Exportações', s.exportacoes)]),
+        el('p', { className: 'dim', textContent: 'Drive: ' + mb(s.driveUsedBytes) + ' de ' + mb(s.driveLimitBytes) })),
+      el('div', { className: 'p' }, el('h3', { textContent: 'Exportações' }),
+        btn('Classificação (CSV)', csv('ranking')), ' ', btn('Participantes (CSV)', csv('participants')), ' ',
+        btn('ZIP das fotografias otimizadas', async () => { say('A criar ZIP…'); const r = await api('adminExportZip'); say(''); out.replaceChildren('ZIP criado (' + r.photos + ' fotografias): ', el('a', { href: r.url, target: '_blank', rel: 'noopener', textContent: r.name })); }),
+        out, el('p', { className: 'dim', textContent: 'Os originais completos estão na pasta "Fotografias Originais" do Google Drive; cada fotografia individual tem ligação na aba Fotografias.' })));
+  },
+};
+
+async function show(name) {
+  say(''); const v = $('view'); v.replaceChildren();
+  [...$('nav').children].forEach((b) => b.classList.toggle('on', b.textContent === name));
+  try { await TABS[name](v); } catch (e) { say(e.message); }
+}
+function start() {
+  $('login').hidden = true; $('nav').hidden = false;
+  $('nav').replaceChildren(...Object.keys(TABS).map((n) => { const b = el('button', { textContent: n }); b.onclick = () => show(n); return b; }));
+  show('Painel');
 }
 $('go').onclick = async () => {
-  try { const r = await api('adminLogin', { password: $('pw').value }); tok = r.adminToken; sessionStorage.setItem('gp_admin', tok); $('pw').value = ''; say(''); await load(); }
+  try { const r = await api('adminLogin', { password: $('pw').value }); tok = r.adminToken; sessionStorage.setItem('gp_admin', tok); $('pw').value = ''; say(''); start(); }
   catch (e) { say(e.message); }
 };
-$('save').onclick = async () => {
-  try { await api('adminSetConfig', { values: { competition_start: toIso($('start').value), competition_end: toIso($('end').value) } }); say('Datas guardadas.'); await load(); }
-  catch (e) { say(e.message); }
-};
-if (tok) load();
+if (tok) start();
 </script>
 </body>
 </html>
