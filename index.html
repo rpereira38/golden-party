@@ -4,85 +4,232 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Golden Party — Teste de ligação</title>
+  <title>Golden Party — Teste de fotografias</title>
+
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 50px auto;
+      max-width: 720px;
+      margin: 40px auto;
       padding: 20px;
       color: #333;
     }
 
+    h1 {
+      color: #b18a3b;
+    }
+
+    .panel {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
     button {
+      background: #b18a3b;
+      color: white;
+      border: 0;
+      border-radius: 8px;
       padding: 12px 20px;
-      margin: 8px 5px 8px 0;
       cursor: pointer;
+      margin-top: 15px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    input {
+      display: block;
+      margin-top: 15px;
+      max-width: 100%;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+      max-height: 350px;
+      object-fit: contain;
+      margin-top: 15px;
     }
 
     pre {
-      background: #f2f2f2;
-      padding: 16px;
+      background: #f3f3f3;
+      padding: 15px;
+      border-radius: 8px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
   </style>
 </head>
+
 <body>
 
   <h1>Golden Party</h1>
-  <p>Prova de Conceito — Comunicação com o backend</p>
+  <p>Prova de Conceito — Carregamento de fotografias</p>
 
-  <button onclick="testGet()">Testar GET</button>
-  <button onclick="testPost()">Testar POST</button>
+  <section class="panel">
 
-  <h2>Resultado</h2>
-  <pre id="result">A aguardar teste...</pre>
+    <h2>Seleccionar fotografia</h2>
+
+    <p>
+      Formatos aceites: JPEG, PNG e WebP.
+      Limite temporário: 1 MB.
+    </p>
+
+    <input
+      type="file"
+      id="photoInput"
+      accept="image/jpeg,image/png,image/webp"
+    >
+
+    <img id="preview" hidden alt="Pré-visualização da fotografia">
+
+    <p id="fileInfo"></p>
+
+    <button id="uploadButton" onclick="uploadPhoto()">
+      Enviar fotografia
+    </button>
+
+  </section>
+
+  <section class="panel">
+    <h2>Resultado</h2>
+    <pre id="result">À espera de uma fotografia...</pre>
+  </section>
 
   <script>
+
     const API_URL = 'https://script.google.com/macros/s/AKfycbyWyFt0lmQB4aKQJqViAWXpM7WRw3p15jlwVEz1BwWMAc_h1htBLmSXYykEsLc7bc8QGw/exec';
 
+    const MAX_SIZE = 1024 * 1024;
+
+    const photoInput = document.getElementById('photoInput');
+    const preview = document.getElementById('preview');
+    const fileInfo = document.getElementById('fileInfo');
     const result = document.getElementById('result');
+    const uploadButton = document.getElementById('uploadButton');
 
-    async function testGet() {
-      result.textContent = 'A testar GET...';
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ];
 
-      try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
+    photoInput.addEventListener('change', () => {
 
-        result.textContent = JSON.stringify(data, null, 2);
+      const file = photoInput.files[0];
 
-      } catch (error) {
-        result.textContent =
-          'Erro GET: ' + error.message;
+      preview.hidden = true;
+      fileInfo.textContent = '';
+
+      if (!file) return;
+
+      if (!allowedTypes.includes(file.type)) {
+        result.textContent = 'Formato não permitido.';
+        photoInput.value = '';
+        return;
       }
-    }
 
-    async function testPost() {
-      result.textContent = 'A testar POST...';
+      if (file.size > MAX_SIZE) {
+        result.textContent = 'A fotografia ultrapassa 1 MB.';
+        photoInput.value = '';
+        return;
+      }
+
+      preview.src = URL.createObjectURL(file);
+      preview.hidden = false;
+
+      fileInfo.textContent =
+        file.name + ' — ' +
+        (file.size / 1024).toFixed(1) + ' KB';
+
+      result.textContent = 'Fotografia pronta para envio.';
+    });
+
+
+    async function uploadPhoto() {
+
+      const file = photoInput.files[0];
+
+      if (!file) {
+        result.textContent = 'Selecciona primeiro uma fotografia.';
+        return;
+      }
+
+      if (!allowedTypes.includes(file.type) || file.size > MAX_SIZE) {
+        result.textContent = 'Fotografia inválida.';
+        return;
+      }
+
+      uploadButton.disabled = true;
+      result.textContent = 'A preparar fotografia...';
 
       try {
+
+        const base64 = await fileToBase64(file);
+
+        result.textContent = 'A enviar fotografia...';
+
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'text/plain'
           },
           body: JSON.stringify({
-            action: 'ping',
-            message: 'Pedido enviado pelo GitHub Pages'
+            action: 'uploadTest',
+            mimeType: file.type,
+            imageData: base64
           })
         });
 
         const data = await response.json();
 
-        result.textContent = JSON.stringify(data, null, 2);
+        result.textContent = JSON.stringify(
+          data,
+          null,
+          2
+        );
 
       } catch (error) {
+
         result.textContent =
-          'Erro POST: ' + error.message;
+          'Erro no carregamento: ' + error.message;
+
+      } finally {
+
+        uploadButton.disabled = false;
+
       }
     }
+
+
+    function fileToBase64(file) {
+
+      return new Promise((resolve, reject) => {
+
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          resolve(dataUrl.split(',')[1]);
+        };
+
+        reader.onerror = () => {
+          reject(new Error('Não foi possível ler a fotografia.'));
+        };
+
+        reader.readAsDataURL(file);
+
+      });
+    }
+
   </script>
 
 </body>
