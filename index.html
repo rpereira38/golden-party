@@ -4,14 +4,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#ffffff">
-  <title>Golden Party — Matilde & Rúben</title>
+  <title>Golden Party — Teste de ligação</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 50px auto;
+      padding: 20px;
+      color: #333;
+    }
+
+    button {
+      padding: 12px 20px;
+      margin: 8px 5px 8px 0;
+      cursor: pointer;
+    }
+
+    pre {
+      background: #f2f2f2;
+      padding: 16px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  </style>
 </head>
 <body>
-  <main>
-    <h1>Golden Party</h1>
-    <p>Matilde & Rúben</p>
-    <p>Estamos a preparar algo especial.</p>
-  </main>
+
+  <h1>Golden Party</h1>
+  <p>Prova de Conceito — Comunicação com o backend</p>
+
+  <button onclick="testGet()">Testar GET</button>
+  <button onclick="testPost()">Testar POST</button>
+
+  <h2>Resultado</h2>
+  <pre id="result">A aguardar teste...</pre>
+
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyWyFt0lmQB4aKQJqViAWXpM7WRw3p15jlwVEz1BwWMAc_h1htBLmSXYykEsLc7bc8QGw/exec';
+
+    const result = document.getElementById('result');
+
+    async function testGet() {
+      result.textContent = 'A testar GET...';
+
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+
+        result.textContent = JSON.stringify(data, null, 2);
+
+      } catch (error) {
+        result.textContent =
+          'Erro GET: ' + error.message;
+      }
+    }
+
+    async function testPost() {
+      result.textContent = 'A testar POST...';
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain'
+          },
+          body: JSON.stringify({
+            action: 'ping',
+            message: 'Pedido enviado pelo GitHub Pages'
+          })
+        });
+
+        const data = await response.json();
+
+        result.textContent = JSON.stringify(data, null, 2);
+
+      } catch (error) {
+        result.textContent =
+          'Erro POST: ' + error.message;
+      }
+    }
+  </script>
+
 </body>
 </html>
