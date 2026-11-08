@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Golden Party — Administração</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:520px;margin:30px auto;padding:0 16px;color:#2b2b2b}
+h1{font-family:Georgia,serif;font-weight:400;color:#b18a3b}
+.p{border:1px solid #eadfc6;border-radius:14px;padding:18px;margin:16px 0}
+input{width:100%;padding:10px;margin:6px 0 12px;border:1px solid #eadfc6;border-radius:8px;font-size:16px}
+button{background:#b18a3b;color:#fff;border:0;border-radius:999px;padding:10px 20px;cursor:pointer}
+dl{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin:0}dd{margin:0;text-align:right}
+#m{min-height:20px;font-size:14px}
+</style>
+</head>
+<body>
+<h1>Administração — Golden Party</h1>
+<section id="login" class="p">
+  <label>Palavra-passe<input id="pw" type="password" autocomplete="current-password"></label>
+  <button id="go">Entrar</button>
+</section>
+<section id="panel" hidden>
+  <div class="p"><h3>Painel</h3><dl id="dash"></dl></div>
+  <div class="p">
+    <h3>Competição</h3>
+    <label>Início<input id="start" type="datetime-local"></label>
+    <label>Fim<input id="end" type="datetime-local"></label>
+    <button id="save">Guardar datas</button>
+  </div>
+</section>
+<div id="m" role="status"></div>
+<script>
+'use strict';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyWyFt0lmQB4aKQJqViAWXpM7WRw3p15jlwVEz1BwWMAc_h1htBLmSXYykEsLc7bc8QGw/exec';
+const $ = (i) => document.getElementById(i);
+let tok = sessionStorage.getItem('gp_admin') || '';
+const say = (t) => ($('m').textContent = t);
+async function api(action, body) {
+  const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, adminToken: tok, ...body }) });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.error.message);
+  return j.data;
+}
+const toLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+const toIso = (v) => (v ? new Date(v).toISOString() : '');
+async function load() {
+  try {
+    const [c, d] = await Promise.all([api('adminGetConfig'), api('adminDashboard')]);
+    $('login').hidden = true; $('panel').hidden = false;
+    $('start').value = toLocal(c.config.competition_start); $('end').value = toLocal(c.config.competition_end);
+    const rows = { 'Estado': c.state, 'Participantes': d.participants, 'Fotografias ativas': d.activePhotos, 'Gostos': d.likes, 'Notificações por ler': d.unreadNotifications };
+    $('dash').replaceChildren(...Object.entries(rows).flatMap(([k, v]) => { const a = document.createElement('dt'), b = document.createElement('dd'); a.textContent = k; b.textContent = v; return [a, b]; }));
+  } catch (e) { tok = ''; sessionStorage.removeItem('gp_admin'); $('login').hidden = false; $('panel').hidden = true; say(e.message); }
+}
+$('go').onclick = async () => {
+  try { const r = await api('adminLogin', { password: $('pw').value }); tok = r.adminToken; sessionStorage.setItem('gp_admin', tok); $('pw').value = ''; say(''); await load(); }
+  catch (e) { say(e.message); }
+};
+$('save').onclick = async () => {
+  try { await api('adminSetConfig', { values: { competition_start: toIso($('start').value), competition_end: toIso($('end').value) } }); say('Datas guardadas.'); await load(); }
+  catch (e) { say(e.message); }
+};
+if (tok) load();
+</script>
+</body>
+</html>
