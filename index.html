@@ -85,7 +85,7 @@ let me = null, G = null, S = null, liked = new Set(), shuffle = null, busy = fal
 
 try { me = JSON.parse(localStorage.getItem('gp_me') || 'null'); } catch (e) {}
 
-async function api(action, body, retry = 2) {
+async function api(action, body, retry = 4) {
   const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, ...body }) });
   const j = await r.json();
   if (!j.success) {
